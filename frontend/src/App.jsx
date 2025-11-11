@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-// API base URL. Hum assume kar rahe hain ki backend server port 5000 par chalega.
+
 const API_URL = 'http://localhost:5000/api';
 
 // --- Main App Component ---
@@ -14,7 +14,7 @@ export default function App() {
 
   // --- Auth State Effect ---
   useEffect(() => {
-    // App load par localStorage se token check karo
+    
     const storedToken = localStorage.getItem('token');
     if (storedToken) {
       setToken(storedToken);
@@ -45,7 +45,7 @@ export default function App() {
 
   const handleLogin = async (e, isAfterSignup = false) => {
     e.preventDefault();
-    if (!isAfterSignup) setError(null); // Signup ke error ko clear mat karo
+    if (!isAfterSignup) setError(null); 
 
     try {
       const res = await fetch(`${API_URL}/auth/login`, {
@@ -56,7 +56,7 @@ export default function App() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.msg || 'Login failed');
       
-      // Token ko localStorage aur state mein save karo
+     
       localStorage.setItem('token', data.token);
       setToken(data.token);
       setEmail('');
@@ -99,7 +99,7 @@ export default function App() {
 }
 
 // --- TodoApp Component ---
-// This component renders when the user is logged in
+
 function TodoApp({ token, onLogout }) {
   const [todos, setTodos] = useState([]);
   const [newTodo, setNewTodo] = useState('');
@@ -113,7 +113,7 @@ function TodoApp({ token, onLogout }) {
         const res = await fetch(`${API_URL}/todos`, {
           headers: {
             'Content-Type': 'application/json',
-            'x-auth-token': token, // Auth token header mein bhejo
+            'x-auth-token': token, 
           },
         });
         if (!res.ok) throw new Error('Failed to fetch todos');
@@ -131,7 +131,7 @@ function TodoApp({ token, onLogout }) {
     }
   }, [token]);
 
-  // --- Handlers for Todos ---
+  
   const handleAddTodo = async (e) => {
     e.preventDefault();
     if (newTodo.trim() === '') return;
@@ -147,7 +147,7 @@ function TodoApp({ token, onLogout }) {
       });
       if (!res.ok) throw new Error('Failed to add todo');
       const data = await res.json();
-      setTodos([...todos, data]); // Naya todo state mein add karo
+      setTodos([...todos, data]); 
       setNewTodo('');
     } catch (err) {
       console.error("Error adding todo: ", err);
@@ -166,7 +166,7 @@ function TodoApp({ token, onLogout }) {
       });
       if (!res.ok) throw new Error('Failed to update todo');
       const updatedTodo = await res.json();
-      // State mein todo ko replace karo
+      
       setTodos(todos.map(todo => (todo._id === id ? updatedTodo : todo)));
     } catch (err) {
       console.error("Error toggling todo: ", err);
@@ -183,7 +183,7 @@ function TodoApp({ token, onLogout }) {
         },
       });
       if (!res.ok) throw new Error('Failed to delete todo');
-      // State se todo ko filter karke hata do
+     
       setTodos(todos.filter(todo => todo._id !== id));
     } catch (err) {
       console.error("Error deleting todo: ", err);

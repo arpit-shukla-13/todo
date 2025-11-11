@@ -1,12 +1,9 @@
-/* Import Tailwind's base styles, components, and utilities */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Yeh code add karein
-  Yeh HTML, Body, aur #root (aapke app ka container)
-  ko poori screen ki height aur width deta hai.
-*/
+
 html,
 body,
 #root {
@@ -14,6 +11,6 @@ body,
   width: 100%;
   margin: 0;
   padding: 0;
-  /* Yeh gradient ko body par bhi laga dega */
+ 
   @apply bg-gradient-to-br from-blue-50 to-indigo-100;
 }
