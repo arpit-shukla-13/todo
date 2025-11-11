@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { check, validationResult } = require('express-validator');
+const { check, validationResult } = require('express-validator'); // Kept your new validator!
 require('dotenv').config();
 
 const app = express();
@@ -13,8 +13,8 @@ app.use(cors());
 app.use(express.json());
 
 // --- Database Connection ---
-const MONGO_URI = process.env.MONGO_URI || 'YOUR_MONGODB_CONNECTION_STRING_HERE';
-const JWT_SECRET = process.env.JWT_SECRET || 'YOUR_SUPER_SECRET_KEY_HERE';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://to-do-123:to-do-123@mysecuresharecluster.2cdw072.mongodb.net/?appName=MySecureShareCluster';
+const JWT_SECRET = process.env.JWT_SECRET || '123456789';
 
 mongoose.connect(MONGO_URI)
   .then(() => console.log('MongoDB Connected...'))
@@ -22,7 +22,7 @@ mongoose.connect(MONGO_URI)
 
 // --- Mongoose Models ---
 
-// User Model
+// User Model (Kept your version)
 const UserSchema = new mongoose.Schema({
   email: {
     type: String,
@@ -40,7 +40,7 @@ const UserSchema = new mongoose.Schema({
 });
 const User = mongoose.model('user', UserSchema);
 
-// Todo Model
+// Todo Model (***UPDATED***)
 const TodoSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
@@ -54,24 +54,18 @@ const TodoSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
-});
+},
+{ timestamps: true }); // <-- YEH CHANGE hai: Clean way to get createdAt and updatedAt
+
 const Todo = mongoose.model('todo', TodoSchema);
 
 // --- Auth Middleware ---
+// (Kept your version)
 const auth = (req, res, next) => {
-  // Get token from header
   const token = req.header('x-auth-token');
-
-  // Check if not token
   if (!token) {
     return res.status(401).json({ msg: 'No token, authorization denied' });
   }
-
-  // Verify token
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded.user;
@@ -83,11 +77,10 @@ const auth = (req, res, next) => {
 
 // --- API Routes ---
 
-// 1. Auth Routes (Register & Login)
+// 1. Auth Routes (Kept your version with validation)
 const authRouter = express.Router();
 
 // @route   POST /api/auth/register
-// @desc    Register a new user
 authRouter.post(
   '/register',
   [
@@ -109,14 +102,10 @@ authRouter.post(
       }
 
       user = new User({ email, password });
-
-      // Hash password
       const salt = await bcrypt.genSalt(10);
       user.password = await bcrypt.hash(password, salt);
-
       await user.save();
 
-      // Create and return JWT
       const payload = { user: { id: user.id } };
       jwt.sign(payload, JWT_SECRET, { expiresIn: '5h' }, (err, token) => {
         if (err) throw err;
@@ -130,7 +119,6 @@ authRouter.post(
 );
 
 // @route   POST /api/auth/login
-// @desc    Authenticate user & get token
 authRouter.post(
   '/login',
   [
@@ -156,7 +144,6 @@ authRouter.post(
         return res.status(400).json({ msg: 'Invalid Credentials' });
       }
 
-      // Create and return JWT
       const payload = { user: { id: user.id } };
       jwt.sign(payload, JWT_SECRET, { expiresIn: '5h' }, (err, token) => {
         if (err) throw err;
@@ -175,7 +162,7 @@ app.use('/api/auth', authRouter);
 const todoRouter = express.Router();
 
 // @route   GET /api/todos
-// @desc    Get all todos for the logged-in user
+// (Kept your version)
 todoRouter.get('/', auth, async (req, res) => {
   try {
     const todos = await Todo.find({ user: req.user.id }).sort({ createdAt: -1 });
@@ -187,7 +174,7 @@ todoRouter.get('/', auth, async (req, res) => {
 });
 
 // @route   POST /api/todos
-// @desc    Add a new todo
+// (Kept your version with validation)
 todoRouter.post(
   '/',
   [auth, [check('text', 'Text is required').not().isEmpty()]],
@@ -213,26 +200,35 @@ todoRouter.post(
 );
 
 // @route   PUT /api/todos/:id
-// @desc    Update a todo (mark as complete/incomplete)
+// @desc    Update a todo (text OR completed status)
+
 todoRouter.put('/:id', auth, async (req, res) => {
+  const { text, completed } = req.body;
+
   try {
     let todo = await Todo.findById(req.params.id);
     if (!todo) return res.status(404).json({ msg: 'Todo not found' });
 
-    // Make sure user owns the todo
     if (todo.user.toString() !== req.user.id) {
       return res.status(401).json({ msg: 'Not authorized' });
     }
-    
-    // Only allow updating the 'completed' status
-    const newCompletedStatus = req.body.completed;
-    if (typeof newCompletedStatus !== 'boolean') {
-        return res.status(400).json({ msg: 'Invalid update data. Only "completed" status can be updated.' });
+
+   
+    const updateFields = {};
+    if (text) {
+      updateFields.text = text; 
+    }
+    if (completed !== undefined) {
+      updateFields.completed = completed; 
+    }
+
+    if (Object.keys(updateFields).length === 0) {
+        return res.status(400).json({ msg: 'No update fields provided' });
     }
 
     todo = await Todo.findByIdAndUpdate(
       req.params.id,
-      { $set: { completed: newCompletedStatus } },
+      { $set: updateFields },
       { new: true }
     );
 
@@ -244,13 +240,12 @@ todoRouter.put('/:id', auth, async (req, res) => {
 });
 
 // @route   DELETE /api/todos/:id
-// @desc    Delete a todo
+// (Kept your version)
 todoRouter.delete('/:id', auth, async (req, res) => {
   try {
     let todo = await Todo.findById(req.params.id);
     if (!todo) return res.status(404).json({ msg: 'Todo not found' });
 
-    // Make sure user owns the todo
     if (todo.user.toString() !== req.user.id) {
       return res.status(401).json({ msg: 'Not authorized' });
     }

@@ -1,20 +1,17 @@
 import React, { useState, useEffect } from 'react';
 
-
 const API_URL = 'http://localhost:5000/api';
 
 // --- Main App Component ---
 export default function App() {
   const [token, setToken] = useState(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
-  const [page, setPage] = useState('login'); // 'login' or 'signup'
+  const [page, setPage] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
 
-  // --- Auth State Effect ---
   useEffect(() => {
-    
     const storedToken = localStorage.getItem('token');
     if (storedToken) {
       setToken(storedToken);
@@ -22,7 +19,6 @@ export default function App() {
     setIsAuthReady(true);
   }, []);
 
-  // --- Handlers for Auth ---
   const handleSignUp = async (e) => {
     e.preventDefault();
     setError(null);
@@ -34,10 +30,7 @@ export default function App() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.msg || 'Signup failed');
-      
-      // Signup ke baad automatically login karwa do
       handleLogin(e, true);
-
     } catch (err) {
       setError(err.message);
     }
@@ -45,7 +38,7 @@ export default function App() {
 
   const handleLogin = async (e, isAfterSignup = false) => {
     e.preventDefault();
-    if (!isAfterSignup) setError(null); 
+    if (!isAfterSignup) setError(null);
 
     try {
       const res = await fetch(`${API_URL}/auth/login`, {
@@ -56,12 +49,10 @@ export default function App() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.msg || 'Login failed');
       
-     
       localStorage.setItem('token', data.token);
       setToken(data.token);
       setEmail('');
       setPassword('');
-
     } catch (err) {
       setError(err.message);
     }
@@ -72,13 +63,19 @@ export default function App() {
     setToken(null);
   };
 
-  // --- Render Logic ---
   if (!isAuthReady) {
     return <LoadingSpinner />;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 font-inter p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 font-inter">
+      {/* Animated Background Elements */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl"></div>
+      </div>
+
       {token ? (
         <TodoApp token={token} onLogout={handleLogout} />
       ) : (
@@ -98,14 +95,16 @@ export default function App() {
   );
 }
 
-// --- TodoApp Component ---
-
+// --- Enhanced TodoApp Component ---
 function TodoApp({ token, onLogout }) {
   const [todos, setTodos] = useState([]);
   const [newTodo, setNewTodo] = useState('');
   const [loadingTodos, setLoadingTodos] = useState(true);
+  const [filter, setFilter] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [editingId, setEditingId] = useState(null);
+  const [editText, setEditText] = useState('');
 
-  // --- Data Fetching Effect ---
   useEffect(() => {
     const fetchTodos = async () => {
       setLoadingTodos(true);
@@ -113,7 +112,7 @@ function TodoApp({ token, onLogout }) {
         const res = await fetch(`${API_URL}/todos`, {
           headers: {
             'Content-Type': 'application/json',
-            'x-auth-token': token, 
+            'x-auth-token': token,
           },
         });
         if (!res.ok) throw new Error('Failed to fetch todos');
@@ -131,7 +130,6 @@ function TodoApp({ token, onLogout }) {
     }
   }, [token]);
 
-  
   const handleAddTodo = async (e) => {
     e.preventDefault();
     if (newTodo.trim() === '') return;
@@ -147,7 +145,7 @@ function TodoApp({ token, onLogout }) {
       });
       if (!res.ok) throw new Error('Failed to add todo');
       const data = await res.json();
-      setTodos([...todos, data]); 
+      setTodos([...todos, data]);
       setNewTodo('');
     } catch (err) {
       console.error("Error adding todo: ", err);
@@ -166,7 +164,6 @@ function TodoApp({ token, onLogout }) {
       });
       if (!res.ok) throw new Error('Failed to update todo');
       const updatedTodo = await res.json();
-      
       setTodos(todos.map(todo => (todo._id === id ? updatedTodo : todo)));
     } catch (err) {
       console.error("Error toggling todo: ", err);
@@ -183,114 +180,312 @@ function TodoApp({ token, onLogout }) {
         },
       });
       if (!res.ok) throw new Error('Failed to delete todo');
-     
       setTodos(todos.filter(todo => todo._id !== id));
     } catch (err) {
       console.error("Error deleting todo: ", err);
     }
   };
 
+  const handleEditTodo = async (id) => {
+    if (editText.trim() === '') return;
+    
+    try {
+      const res = await fetch(`${API_URL}/todos/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token,
+        },
+        body: JSON.stringify({ text: editText }),
+      });
+      if (!res.ok) throw new Error('Failed to update todo');
+      const updatedTodo = await res.json();
+      setTodos(todos.map(todo => (todo._id === id ? updatedTodo : todo)));
+      setEditingId(null);
+      setEditText('');
+    } catch (err) {
+      console.error("Error editing todo: ", err);
+    }
+  };
+
+  const startEditing = (todo) => {
+    setEditingId(todo._id);
+    setEditText(todo.text);
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditText('');
+  };
+
+  // Filter and search todos
+  const filteredTodos = todos.filter(todo => {
+    const matchesSearch = todo.text.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesFilter = 
+      filter === 'all' ? true :
+      filter === 'active' ? !todo.completed :
+      filter === 'completed' ? todo.completed : true;
+    
+    return matchesSearch && matchesFilter;
+  });
+
   const remainingTasks = todos.filter(todo => !todo.completed).length;
+  const completedTasks = todos.filter(todo => todo.completed).length;
 
   return (
-    <div className="max-w-3xl mx-auto p-4 sm:p-8">
-      <header className="flex justify-between items-center mb-8 pb-4 border-b border-gray-200">
-        <div>
-          <h1 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-blue-600 to-indigo-700 bg-clip-text text-transparent pb-2">
-            My MERN Todo List
-          </h1>
-          <p className="text-lg text-gray-600">Aapke paas {remainingTasks} task baaki hain.</p>
+    <div className="relative min-h-screen p-4 sm:p-8 max-w-6xl mx-auto">
+      {/* Header Section */}
+      <header className="relative z-10 mb-12">
+        <div className="flex justify-between items-center mb-8">
+          <div className="flex-1">
+            <h1 className="text-5xl sm:text-6xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent pb-2 animate-gradient">
+              TaskFlow Pro
+            </h1>
+            <p className="text-lg text-gray-300 mt-2">Streamline your productivity</p>
+          </div>
+          
+          {/* Stats Cards */}
+          <div className="flex gap-4">
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20 min-w-32">
+              <div className="text-2xl font-bold text-white">{remainingTasks}</div>
+              <div className="text-sm text-gray-300">Pending</div>
+            </div>
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20 min-w-32">
+              <div className="text-2xl font-bold text-white">{completedTasks}</div>
+              <div className="text-sm text-gray-300">Completed</div>
+            </div>
+          </div>
+
+          <button
+            onClick={onLogout}
+            className="flex items-center gap-3 bg-white/10 backdrop-blur-md text-white px-6 py-3 rounded-2xl font-semibold border border-white/20 hover:bg-white/20 transition-all duration-300 hover:scale-105 ml-4"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            Logout
+          </button>
         </div>
-        <button
-          onClick={onLogout}
-          className="flex items-center gap-2 bg-white text-gray-700 px-4 py-2 rounded-lg font-semibold shadow-md hover:bg-red-50 hover:text-red-600 transition-all duration-200 border border-gray-200"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-          </svg>
-          Logout
-        </button>
+
+        {/* Add Todo Form */}
+        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 mb-6 transition-all duration-300 hover:bg-white/15">
+          <form onSubmit={handleAddTodo} className="flex gap-4">
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                value={newTodo}
+                onChange={(e) => setNewTodo(e.target.value)}
+                placeholder="What needs to be done?"
+                className="w-full p-4 pl-12 bg-white/5 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+              />
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+            </div>
+            <button
+              type="submit"
+              className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-8 py-4 rounded-xl font-semibold shadow-2xl hover:shadow-purple-500/25 hover:scale-105 transition-all duration-300 flex items-center gap-2"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Add Task
+            </button>
+          </form>
+        </div>
+
+        {/* Filter and Search Bar */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="flex gap-2 bg-white/10 backdrop-blur-md rounded-xl p-2 border border-white/20">
+            {['all', 'active', 'completed'].map((filterType) => (
+              <button
+                key={filterType}
+                onClick={() => setFilter(filterType)}
+                className={`px-4 py-2 rounded-lg font-medium capitalize transition-all duration-300 ${
+                  filter === filterType 
+                    ? 'bg-purple-500 text-white shadow-lg' 
+                    : 'text-gray-300 hover:text-white hover:bg-white/10'
+                }`}
+              >
+                {filterType}
+              </button>
+            ))}
+          </div>
+          
+          <div className="relative flex-1">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search tasks..."
+              className="w-full p-4 pl-12 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            />
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+        </div>
       </header>
 
-      <div className="bg-white/70 backdrop-blur-sm rounded-lg shadow-lg p-6 mb-6 transition-all duration-300">
-        <form onSubmit={handleAddTodo} className="flex space-x-3">
-          <input
-            type="text"
-            value={newTodo}
-            onChange={(e) => setNewTodo(e.target.value)}
-            placeholder="Add a new todo..."
-            className="flex-grow p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-          />
-          <button
-            type="submit"
-            className="flex-shrink-0 bg-blue-600 text-white px-5 py-3 rounded-lg font-semibold shadow-lg hover:bg-blue-700 transition-all duration-200 transform hover:scale-105 flex items-center gap-2"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-            Add
-          </button>
-        </form>
-      </div>
-
-      <div className="bg-white/70 backdrop-blur-sm rounded-lg shadow-lg p-6 transition-all duration-300">
+      {/* Todo List */}
+      <div className="relative z-10">
         {loadingTodos ? (
-          <p className="text-center text-gray-500">Loading todos...</p>
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
+          </div>
         ) : (
-          <ul className="divide-y divide-gray-200">
-            {todos.length === 0 ? (
-              <p className="text-center text-gray-500 py-4">No todos yet. Add one above!</p>
+          <div className="space-y-3">
+            {filteredTodos.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="text-gray-400 text-lg">No tasks found</div>
+                <div className="text-gray-500 text-sm mt-2">
+                  {searchTerm ? 'Try adjusting your search terms' : 'Add your first task to get started'}
+                </div>
+              </div>
             ) : (
-              todos.map((todo) => (
+              filteredTodos.map((todo) => (
                 <TodoItem
                   key={todo._id}
                   todo={todo}
                   onToggle={handleToggleTodo}
                   onDelete={handleDeleteTodo}
+                  onEdit={handleEditTodo}
+                  onStartEditing={startEditing}
+                  onCancelEditing={cancelEditing}
+                  isEditing={editingId === todo._id}
+                  editText={editText}
+                  setEditText={setEditText}
                 />
               ))
             )}
-          </ul>
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-// --- TodoItem Component ---
-function TodoItem({ todo, onToggle, onDelete }) {
+// --- Enhanced TodoItem Component ---
+function TodoItem({ 
+  todo, 
+  onToggle, 
+  onDelete, 
+  onEdit, 
+  onStartEditing, 
+  onCancelEditing, 
+  isEditing, 
+  editText, 
+  setEditText 
+}) {
+  const [isHovered, setIsHovered] = useState(false);
+
   return (
-    <li className="flex items-center justify-between py-4 group transition-all duration-200 ease-in-out hover:bg-gray-50 -mx-6 px-6 rounded-lg">
-      <div className="flex items-center">
-        <input
-          type="checkbox"
-          checked={todo.completed}
-          onChange={() => onToggle(todo._id, todo.completed)}
-          className="h-6 w-6 text-blue-600 rounded-md border-gray-300 focus:ring-blue-500 cursor-pointer"
-        />
-        <span
-          className={`ml-4 text-lg font-medium ${
-            todo.completed ? 'line-through text-gray-400 italic' : 'text-gray-800'
-          }`}
-        >
-          {todo.text}
-        </span>
+    <div 
+      className={`group bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20 transition-all duration-300 hover:bg-white/15 hover:scale-[1.02] hover:shadow-2xl ${
+        todo.completed ? 'opacity-60' : ''
+      }`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center flex-1 min-w-0">
+          {/* Custom Checkbox */}
+          <button
+            onClick={() => onToggle(todo._id, todo.completed)}
+            className={`relative w-6 h-6 rounded-lg border-2 transition-all duration-300 flex-shrink-0 ${
+              todo.completed 
+                ? 'bg-green-500 border-green-500' 
+                : 'border-gray-400 hover:border-purple-500'
+            }`}
+          >
+            {todo.completed && (
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+          </button>
+
+          {/* Todo Text or Edit Input */}
+          <div className="ml-4 flex-1 min-w-0">
+            {isEditing ? (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  className="flex-1 bg-white/5 border border-white/20 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') onEdit(todo._id);
+                    if (e.key === 'Escape') onCancelEditing();
+                  }}
+                />
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => onEdit(todo._id)}
+                    className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={onCancelEditing}
+                    className="px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <span
+                  className={`text-lg font-medium truncate ${
+                    todo.completed 
+                      ? 'line-through text-gray-400' 
+                      : 'text-white'
+                  }`}
+                >
+                  {todo.text}
+                </span>
+                
+                {/* Action Buttons */}
+                <div className={`flex items-center gap-2 ml-4 transition-all duration-300 ${
+                  isHovered ? 'opacity-100' : 'opacity-0'
+                }`}>
+                  <button
+                    onClick={() => onStartEditing(todo)}
+                    className="p-2 text-blue-400 hover:bg-white/10 rounded-lg transition-colors"
+                    title="Edit"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                  
+                  <button
+                    onClick={() => onDelete(todo._id)}
+                    className="p-2 text-red-400 hover:bg-white/10 rounded-lg transition-colors"
+                    title="Delete"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-      <button
-        onClick={() => onDelete(todo._id)}
-        className="text-gray-400 opacity-0 group-hover:opacity-100 transition-all duration-200 hover:text-red-600 hover:scale-110"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-        </svg>
-      </button>
-    </li>
+      
+      {/* Timestamp */}
+      <div className="text-xs text-gray-400 mt-2 ml-10">
+        {new Date(todo.createdAt).toLocaleDateString()}
+      </div>
+    </div>
   );
 }
 
-
-// --- AuthForm Component ---
-// This component renders for login/signup
+// --- Enhanced AuthForm Component ---
 function AuthForm({
   page,
   setPage,
@@ -306,91 +501,95 @@ function AuthForm({
 
   return (
     <div className="flex items-center justify-center min-h-screen px-4 py-12">
-      <div className="bg-white/80 backdrop-blur-md p-8 sm:p-10 rounded-2xl shadow-2xl w-full max-w-md border border-gray-200">
+      <div className="relative z-10 bg-white/10 backdrop-blur-md p-8 sm:p-10 rounded-3xl border border-white/20 shadow-2xl w-full max-w-md">
+        {/* Auth Header */}
         <div className="mb-8 text-center">
-          <h2 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-700 bg-clip-text text-transparent pb-2">
-            {isLogin ? 'Welcome Back!' : 'Create Account'}
+          <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+          </div>
+          <h2 className="text-3xl font-bold text-white mb-2">
+            {isLogin ? 'Welcome Back' : 'Create Account'}
           </h2>
-          <p className="text-center text-gray-500 mt-2">
-            {isLogin ? 'Sign in to continue' : 'Get started with your todo list'}
+          <p className="text-gray-300">
+            {isLogin ? 'Sign in to continue your journey' : 'Start organizing your life'}
           </p>
         </div>
 
         <form onSubmit={isLogin ? handleLogin : handleSignUp}>
-          <div className="mb-5 relative">
-            <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="email">
-              Email Address
-            </label>
-            <div className="absolute inset-y-0 left-0 pl-3 pt-7 flex items-center pointer-events-none">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <div className="space-y-4">
+            <div className="relative">
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="w-full p-4 bg-white/5 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all pl-12"
+                placeholder="Enter your email"
+              />
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
               </svg>
             </div>
-            <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-              placeholder="you@example.com"
-            />
-          </div>
-          <div className="mb-6 relative">
-            <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="password">
-              Password
-            </label>
-            <div className="absolute inset-y-0 left-0 pl-3 pt-7 flex items-center pointer-events-none">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+
+            <div className="relative">
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength="6"
+                className="w-full p-4 bg-white/5 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all pl-12"
+                placeholder="Enter your password"
+              />
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
             </div>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength="6"
-              className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-              placeholder="••••••••"
-            />
           </div>
 
           {error && (
-            <p className="text-red-600 bg-red-100 border border-red-300 p-3 rounded-lg text-sm mb-4 text-center">{error}</p>
+            <div className="mt-4 p-3 bg-red-500/20 border border-red-500/30 rounded-xl text-red-200 text-sm text-center">
+              {error}
+            </div>
           )}
 
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white p-3 rounded-lg font-semibold shadow-lg hover:bg-blue-700 transition-all duration-300 transform hover:scale-105 hover:shadow-blue-500/50"
+            className="w-full mt-6 bg-gradient-to-r from-purple-500 to-pink-500 text-white p-4 rounded-xl font-semibold shadow-2xl hover:shadow-purple-500/25 hover:scale-105 transition-all duration-300"
           >
-            {isLogin ? 'Login' : 'Sign Up'}
+            {isLogin ? 'Sign In' : 'Create Account'}
           </button>
         </form>
 
-        <p className="text-center text-sm text-gray-600 mt-6">
-          {isLogin ? "Don't have an account?" : 'Already have an account?'}
-          <button
-            onClick={() => {
-              setPage(isLogin ? 'signup' : 'login');
-              setError(null);
-            }}
-            className="font-medium text-blue-600 hover:text-blue-700 ml-1"
-          >
-            {isLogin ? 'Sign Up' : 'Login'}
-          </button>
-        </p>
+        <div className="text-center mt-6">
+          <p className="text-gray-400">
+            {isLogin ? "Don't have an account?" : 'Already have an account?'}
+            <button
+              onClick={() => {
+                setPage(isLogin ? 'signup' : 'login');
+                setError(null);
+              }}
+              className="text-purple-400 hover:text-purple-300 font-medium ml-1 transition-colors"
+            >
+              {isLogin ? 'Sign Up' : 'Sign In'}
+            </button>
+          </p>
+        </div>
       </div>
     </div>
   );
 }
 
-// --- LoadingSpinner Component ---
+// --- Enhanced LoadingSpinner Component ---
 function LoadingSpinner() {
   return (
     <div className="flex items-center justify-center min-h-screen">
-      <div className="w-16 h-16 border-4 border-t-blue-500 border-gray-200 rounded-full animate-spin"></div>
+      <div className="relative">
+        <div className="w-16 h-16 border-4 border-purple-500/20 rounded-full"></div>
+        <div className="w-16 h-16 border-4 border-t-purple-500 border-r-transparent border-b-transparent border-l-transparent rounded-full absolute top-0 left-0 animate-spin"></div>
+      </div>
     </div>
   );
 }
